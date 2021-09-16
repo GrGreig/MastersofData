@@ -1,0 +1,246 @@
+---
+title: 'STAT462 Assignment 2: Classification'
+author: 'Graham Greig SN: 47022356'
+date: "09/09/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+# Problem 1
+
+*Suppose we collect data for a group of students
+with variables $X1$ = hours spent studying per week, $X2$ = number of classes attended and Y = (1 if the student received a GPA value of 7 or better in in the class and 0 otherwise.)
+We fit a logistic regression model and find the estimated coefficients to be:  $\hat{\beta_0} = -16;$  $\hat{\beta_1} = 1.4$ and $\hat{\beta_2} = 0.3$.*
+
+*a.) Estimate the probability that a student gets a GPA value $\geqslant$ 7 if they study 5 or more hours per week and they attend all 36 classes.*
+
+The model for the logistic regression function for this classification problem is:
+
+$$P(Y \geqslant 7 | X1 = 5, X2 = 36) = p(x) = \frac{e^{\hat{\beta_0} + \hat{\beta_1}5 + \hat{\beta_2}36}}{ 1 + e^{\hat{\beta_0} + \hat{\beta_1}5 + \hat{\beta_2}36}} $$
+
+```{r}
+#Start by defining the coefficients
+beta_0 = -16
+beta_1 = 1.4
+beta_2 = 0.3
+
+x1 = 5
+x2 = 36
+
+#Now evaluate the function
+prob = exp(beta_0 + beta_1 * x1 + beta_2 * x2) / (1 + exp(beta_0 + beta_1 * x1 + beta_2 * x2))
+
+```
+The probability if found to be: **85.81%**. 
+
+*b.) If a student attends 18 classes how many hours need to be studied to achieve a GPA of greater than or equal to 7 with a probability of 50%*
+
+This is best solved using the logit transform of the logistic regression function
+
+$$log(\frac{p(x)}{1-p(x)}) = \hat{\beta_0} + \hat{\beta_1}X1 + \hat{\beta_2}X2$$
+Plugging in $p(x) = 0.5$ and $X2 = 5$ and all $\hat{\beta}$ values gives:
+
+$$log(1) =  \hat{\beta_0} + \hat{\beta_1}X1 + \hat{\beta_2}*18$$ 
+And so,
+```{r}
+X1 = (-beta_0 - beta_2*18)/beta_1
+```
+
+This finds that the student would need to study **7.57** hours per week to have a 50% chance of achieving a GPA of 7 or greater.
+
+# Problem 2
+
+*In this problem a logistic model will be fit to predict the probability that a banknote was forged using the banknote data set. This data has been divided into training and testing sets. (BankTrain.csv and BankTest.csv) The 5th column is the response variable where y = 1 indicates a forgery and y = 0 is a genuine note. Only X1 and X3 will be used as predictors.*
+
+*a.) Perform Multiple Logistic Regression on the training data and comment on the model.*
+
+The model to fit will once again be $p(x) = \frac{e^{\hat{\beta_0} + \hat{\beta_1}X1 + \hat{\beta_3}X3}}{ 1 + e^{\hat{\beta_0} + \hat{\beta_1}X1 + \hat{\beta_3}X3}}$
+
+```{r}
+# Load in the data
+BankTrain=read.csv("BankTrain.csv",header=T,na.strings="?")
+BankTest=read.csv("BankTest.csv",header=T,na.strings="?")
+
+#Get the model
+training_glm=glm(y~x1+x3, data=BankTrain, family=binomial)
+summary(training_glm)
+```
+From the summary it is clear that the P values for x1 and x3 are significant indicating that they should be considered in the model from a maximum likelihood estimation of Bernoulli trials. The intercept however is not very significant. From the p-values in the summary (Pr(>|Z|)) this is likely a good model. The beta values are found to be:
+
+$$ \hat{\beta_0} = 0.22, \hat{\beta_1} = -1.31, \hat{\beta_3} = -0.22  $$
+*b.)*
+*i.)Plot the training data and the decision boundary assuming a decision boundary of p(x) = 0.5*
+
+For this, the logit form of the GLM classiification is most useful. We get:
+
+$$ log(\frac{p(x)}{1 - p(x)}) = \hat{\beta_0} + \hat{\beta_1}X1 + \hat{\beta_3}X3$$
+Using $p(x) = 0.5$ gives:
+
+$$X1 = -\frac{\hat{\beta_3}}{\hat{\beta_1}}X3 -\frac{\hat{\beta_0}}{\hat{\beta_1}} $$
+This is a model which can have its decision boundary plotted with slope $-\frac{\hat{\beta_3}}{\hat{\beta_1}}$ and intercept $-\frac{\hat{\beta_0}}{\hat{\beta_1}}$.
+
+```{r}
+glm_probs = predict(training_glm, type="response")
+glm_pred=rep("Real Banknote",960)
+glm_pred[glm_probs>.5]="Forged Banknote"
+glm_pred = factor(glm_pred, levels = c("Real Banknote", "Forged Banknote"))
+
+plot(BankTrain$x3, BankTrain$x1, pch = as.integer(glm_pred), col = as.integer(glm_pred), main = "Bank Note Forgery Training Data; p(x) = 0.5", xlab = "Kurtosis of Wavelet Transformed Image", ylab = "Variance of Wavelet Transformed Image")
+legend("topright",legend = c("Real", "Forged"), pch = c(1,2),col = c(1,2),text.col = "black",horiz = FALSE)
+
+x = seq(from=-6,to=18,0.01)
+beta = summary(training_glm)$coef[,1]
+y = -beta[3]/beta[2]*x -beta[1]/beta[2]
+
+lines(x,y,col="blue")
+```
+
+
+
+*ii) Compute the confusion matrix for the Testing data set and comment on the output*
+
+The confusion matrix is computed as follows:
+
+```{r}
+test_probs = predict(training_glm,BankTest,type = "response")
+test_glm_pred=rep("Real Banknote",412)
+test_glm_pred[test_probs>.5]="Forged Banknote"
+test_glm_pred = factor(test_glm_pred, levels = c("Real Banknote", "Forged Banknote"))
+table(test_glm_pred,BankTest$y)
+```
+The accuracy of this model is found by:
+```{r}
+(204 + 152)/412
+```
+So the model is 86.4% accurate on the test data. This is an alright estimate of forgeries but almost 15% will not be caught by this model.  Also, there are almost equal false forgeries (32) and false real notes (24)
+
+*iii.) Using $p(x) = 0.3$ and $p(x) = 0.6$, compute the confusion matrices. Comment when $p(x) = 0.3$ could be desirable.*
+
+Starting with 0.6:
+
+```{r}
+test_probs = predict(training_glm,BankTest,type = "response")
+test_glm_pred=rep("Real Banknote",412)
+test_glm_pred[test_probs>.6]="Forged Banknote"
+test_glm_pred = factor(test_glm_pred, levels = c("Real Banknote", "Forged Banknote"))
+table(test_glm_pred,BankTest$y)
+```
+```{r}
+(210 + 141)/412
+```
+Moving to $p(x) = 0.6$ has slightly decreased the accuracy of the model. This has also flipped the proportion of false forgeries and false real notes. 
+
+Now with $p(x) = 0.3$
+
+```{r}
+test_probs = predict(training_glm,BankTest,type = "response")
+test_glm_pred=rep("Real Banknote",412)
+test_glm_pred[test_probs>.3]="Forged Banknote"
+test_glm_pred = factor(test_glm_pred, levels = c("Real Banknote", "Forged Banknote"))
+table(test_glm_pred,BankTest$y)
+```
+
+```{r}
+(183 + 171)/(412)
+ 
+```
+This model is also slightly less accurate however, only 5 real banknotes were classified as forgeries and so this model would be useful when trying to keep as many real banknotes in circulation as possible while having a number of forgeries stay in circulation.
+
+# Problem 3
+
+*In this problem linear discriminant analysis (LDA) and quadratic discriminant analysis (QDA) models will be fit to the training data set.*
+
+*i.)Perform LDA analysis on the data set*
+
+```{r}
+library(MASS)
+lda_fit=lda(y~x1+x3, data=BankTrain)
+lda_fit
+plot(lda_fit)
+```
+
+From the prior probabilities we can see that ~54.8% of the training data are real banknotes and ~45.2% are fakes. We see that the data is roughly normal in nature and so this could be a good method of analysis. To determine this, lets look at the confusion matrix.
+
+```{r}
+lda_probs = predict(lda_fit,BankTest,type = "response")
+lda_class=lda_probs$class
+table(lda_class,BankTest$y)
+mean(lda_class==BankTest$y)
+```
+This model is 86.7% accurate. 
+
+*ii)Repeat using QDA*
+
+
+```{r}
+qda_fit=qda(y~x1+x3, data=BankTrain)
+qda_fit
+qda_class=predict(qda_fit,BankTest)$class
+table(qda_class,BankTest$y)
+mean(qda_class==BankTest$y)
+
+```
+From the confusion matrix we see that the QDA model is slightly more accurate at 88.8%. 
+
+*iii.) Compare with the logistic regression for $p(x) = 0.5$*
+
+Comparing the accuracy of the models we have: QDA: 88.8%, LDA: 86.7% and GLM:86.4%. The LDA and GLM models have pretty similar false positive and false negative rates while the QDA model does slightly better on both which increases its accuracy. Because of this, I would choose to use the QDA model over the other two for its slightly improved accuracy at separating forgeries and real banknotes.  
+
+# Problem 4
+
+*Consider a binary classifcation problem $Y \in \{1,0\}$; 1g with one predictor $X$.
+Assume that $X$ is normally distributed in each class with $X : N(0,4) = f_0(x)$ in class 0 and $X: N(2,4) = f_1(x)$ in class 1. Calculate Bayes error rate when the prior probability of being in class 0 is $\pi_0 = 0.4$.* 
+
+Since $\pi_0 = 0.4$, $\pi_1 = 0.6$ 
+
+To find the Bayes error rate, the decision boundary of this classifier must be found first. This is found at:
+
+$$ \pi_0f_0(X) = \pi_1f_1(x)$$
+Since the variance is constant in both, this can be solved with linear discriminant analysis so,
+
+$$\delta_0(x) = \delta_1(x)$$
+$$ \frac{\mu_0 x}{\sigma^2} - \frac{\mu_0^2}{2\sigma^2} + ln(\pi_0)= \frac{\mu_1 x}{\sigma^2} - \frac{\mu_1^2}{2\sigma^2} + ln(\pi_1)$$
+
+$$x(\frac{\mu_0-\mu_1}{\sigma^2}) = \frac{\mu_0^2-\mu_1^2}{2\sigma^2} + ln(\frac{\pi_1}{\pi_0}) $$ 
+```{r}
+#Plot out the gaussians to see where they should cross (check of math)
+x = seq(-5,5,length = 100)
+pi_0 = 0.4
+pi_1 = 1 - pi_0
+mu_0 = 0
+mu_1 = 2
+sigma_2 = 4
+
+#Define the functions
+f_0 = pi_0*dnorm(x,mu_0,sqrt(sigma_2))
+f_1 = pi_1*dnorm(x,mu_1,sqrt(sigma_2))
+
+#Plot the curve out.
+plot(x,f_0,col = "blue", lwd = 4 ,type  ='l', main = "Plot of pi_0f_0 and pi_1f_1",
+     xlab = "x", ylab = "pi_if_i(x)")
+#Plot the second curve.
+points(x, f_1, col="dark red", lwd = 4, type = 'l')
+legend("topright",legend = c("Class 0", "Class 1"),
+        col = c("blue","dark red"),lwd = 4,
+        text.col = "black",
+        horiz = FALSE)
+
+numerator = (mu_0^2 - mu_1^2)/(2*sigma_2) + log(pi_1/pi_0)
+denominator = (mu_0 - mu_1)/sigma_2
+X = numerator/denominator
+X
+```
+This finds the boundary to be 0.1890698. Now, the Bayes error rate is computed as:
+
+$$\pi_0P(X>0.1890698|Y=0) + \pi_1P(X< 0.1890698|Y = 1)$$
+```{r}
+#Given the boundary value compute the integral
+
+int_1 = pnorm(X,mu_1,sigma_2)
+int_0 = 1 - pnorm(X,mu_0,sigma_2)
+error_rate = pi_1*int_1 + pi_0*int_0
+error_rate
+```
+So, the LDA analysis has a Bayes Error Rate of about 38.9%.
